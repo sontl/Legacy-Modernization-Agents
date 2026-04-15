@@ -1133,6 +1133,56 @@ internal static class Program
             aiSettings.ServiceType = serviceType;
         }
 
+        // AISETTINGS__* env vars (provider-agnostic, set by doctor.sh for all providers).
+        // These take priority over the AZURE_OPENAI_* vars above.
+        var aisEndpoint = Environment.GetEnvironmentVariable("AISETTINGS__ENDPOINT");
+        if (!string.IsNullOrEmpty(aisEndpoint))
+            aiSettings.Endpoint = aisEndpoint;
+
+        var aisApiKey = Environment.GetEnvironmentVariable("AISETTINGS__APIKEY");
+        if (!string.IsNullOrEmpty(aisApiKey))
+            aiSettings.ApiKey = aisApiKey;
+
+        var aisModelId = Environment.GetEnvironmentVariable("AISETTINGS__MODELID");
+        if (!string.IsNullOrEmpty(aisModelId))
+            aiSettings.ModelId = aisModelId;
+
+        var aisDeployment = Environment.GetEnvironmentVariable("AISETTINGS__DEPLOYMENTNAME");
+        if (!string.IsNullOrEmpty(aisDeployment))
+            aiSettings.DeploymentName = aisDeployment;
+
+        var aisChatEndpoint = Environment.GetEnvironmentVariable("AISETTINGS__CHATENDPOINT");
+        if (!string.IsNullOrEmpty(aisChatEndpoint))
+            aiSettings.ChatEndpoint = aisChatEndpoint;
+
+        var aisChatApiKey = Environment.GetEnvironmentVariable("AISETTINGS__CHATAPIKEY");
+        if (!string.IsNullOrEmpty(aisChatApiKey))
+            aiSettings.ChatApiKey = aisChatApiKey;
+
+        var aisChatModelId = Environment.GetEnvironmentVariable("AISETTINGS__CHATMODELID");
+        if (!string.IsNullOrEmpty(aisChatModelId))
+            aiSettings.ChatModelId = aisChatModelId;
+
+        var aisChatDeployment = Environment.GetEnvironmentVariable("AISETTINGS__CHATDEPLOYMENTNAME");
+        if (!string.IsNullOrEmpty(aisChatDeployment))
+            aiSettings.ChatDeploymentName = aisChatDeployment;
+
+        var aisCobolModel = Environment.GetEnvironmentVariable("AISETTINGS__COBOLANALYZERMODELID");
+        if (!string.IsNullOrEmpty(aisCobolModel))
+            aiSettings.CobolAnalyzerModelId = aisCobolModel;
+
+        var aisJavaModel = Environment.GetEnvironmentVariable("AISETTINGS__JAVACONVERTERMODELID");
+        if (!string.IsNullOrEmpty(aisJavaModel))
+            aiSettings.JavaConverterModelId = aisJavaModel;
+
+        var aisDependencyModel = Environment.GetEnvironmentVariable("AISETTINGS__DEPENDENCYMAPPERMODELID");
+        if (!string.IsNullOrEmpty(aisDependencyModel))
+            aiSettings.DependencyMapperModelId = aisDependencyModel;
+
+        var aisTestModel = Environment.GetEnvironmentVariable("AISETTINGS__UNITTESTMODELID");
+        if (!string.IsNullOrEmpty(aisTestModel))
+            aiSettings.UnitTestModelId = aisTestModel;
+
         // Context Window Override (Explicitly set context size to avoid magic string detection)
         var contextWindowSize = Environment.GetEnvironmentVariable("AZURE_OPENAI_CONTEXT_WINDOW_SIZE");
         if (!string.IsNullOrEmpty(contextWindowSize) && int.TryParse(contextWindowSize, out int size))

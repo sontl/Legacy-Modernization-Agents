@@ -1245,21 +1245,19 @@ run_setup() {
 
 AZURE_OPENAI_SERVICE_TYPE="ClaudeCode"
 
-_CLAUDE_MODEL="${claude_model}"
-
 # --- Code Agents Configuration (all agents use the same Claude model) ---
-AISETTINGS__MODELID="\${_CLAUDE_MODEL}"
-AISETTINGS__DEPLOYMENTNAME="\${_CLAUDE_MODEL}"
+AISETTINGS__MODELID="${claude_model}"
+AISETTINGS__DEPLOYMENTNAME="${claude_model}"
 
 # --- Portal & Chat Configuration (same model) ---
-AISETTINGS__CHATMODELID="\${_CLAUDE_MODEL}"
-AISETTINGS__CHATDEPLOYMENTNAME="\${_CLAUDE_MODEL}"
+AISETTINGS__CHATMODELID="${claude_model}"
+AISETTINGS__CHATDEPLOYMENTNAME="${claude_model}"
 
 # Individual Agent Overrides (all default to the Claude model above)
-AISETTINGS__COBOLANALYZERMODELID="\${_CLAUDE_MODEL}"
-AISETTINGS__JAVACONVERTERMODELID="\${_CLAUDE_MODEL}"
-AISETTINGS__UNITTESTMODELID="\${_CLAUDE_MODEL}"
-AISETTINGS__DEPENDENCYMAPPERMODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__COBOLANALYZERMODELID="${claude_model}"
+AISETTINGS__JAVACONVERTERMODELID="${claude_model}"
+AISETTINGS__UNITTESTMODELID="${claude_model}"
+AISETTINGS__DEPENDENCYMAPPERMODELID="${claude_model}"
 
 # --- Placeholder values (not used by Claude Code but avoids config warnings) ---
 AZURE_OPENAI_ENDPOINT="https://claudecode-placeholder"
@@ -1337,23 +1335,21 @@ CCEOF
 
 AZURE_OPENAI_SERVICE_TYPE="Anthropic"
 
-_ANTHROPIC_MODEL="${anthropic_model}"
-
 # --- Code Agents Configuration (all agents use the same Claude model) ---
 AISETTINGS__APIKEY="${anthropic_api_key}"
-AISETTINGS__MODELID="\${_ANTHROPIC_MODEL}"
-AISETTINGS__DEPLOYMENTNAME="\${_ANTHROPIC_MODEL}"
+AISETTINGS__MODELID="${anthropic_model}"
+AISETTINGS__DEPLOYMENTNAME="${anthropic_model}"
 
 # --- Portal & Chat Configuration (same model) ---
 AISETTINGS__CHATAPIKEY="${anthropic_api_key}"
-AISETTINGS__CHATMODELID="\${_ANTHROPIC_MODEL}"
-AISETTINGS__CHATDEPLOYMENTNAME="\${_ANTHROPIC_MODEL}"
+AISETTINGS__CHATMODELID="${anthropic_model}"
+AISETTINGS__CHATDEPLOYMENTNAME="${anthropic_model}"
 
 # Individual Agent Overrides (all default to the Claude model above)
-AISETTINGS__COBOLANALYZERMODELID="\${_ANTHROPIC_MODEL}"
-AISETTINGS__JAVACONVERTERMODELID="\${_ANTHROPIC_MODEL}"
-AISETTINGS__UNITTESTMODELID="\${_ANTHROPIC_MODEL}"
-AISETTINGS__DEPENDENCYMAPPERMODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__COBOLANALYZERMODELID="${anthropic_model}"
+AISETTINGS__JAVACONVERTERMODELID="${anthropic_model}"
+AISETTINGS__UNITTESTMODELID="${anthropic_model}"
+AISETTINGS__DEPENDENCYMAPPERMODELID="${anthropic_model}"
 
 # --- Placeholder endpoints (not used by Anthropic but avoids config warnings) ---
 AZURE_OPENAI_ENDPOINT="https://anthropic-placeholder"

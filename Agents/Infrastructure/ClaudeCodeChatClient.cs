@@ -76,6 +76,7 @@ public sealed class ClaudeCodeChatClient : IChatClient
             "--model", model,              // Model selection
             "--max-turns", "1",            // Single-turn completion (no tool use loops)
             "--no-session-persistence",    // Don't save session to disk
+            "--allowedTools", "",          // Disable all tools — we want pure LLM completions
         };
 
         if (!string.IsNullOrEmpty(systemMessage))
@@ -118,12 +119,20 @@ public sealed class ClaudeCodeChatClient : IChatClient
             var stdout = await stdoutTask;
             var stderr = await stderrTask;
 
-            if (process.ExitCode != 0)
+            // Always try to parse stdout first — the claude CLI outputs JSON even on failure
+            // (exit code 1 with is_error:true in JSON). Only fall back to stderr if stdout is empty.
+            if (string.IsNullOrWhiteSpace(stdout))
             {
-                _logger?.LogError("ClaudeCodeChatClient: claude CLI exited with code {ExitCode}. stderr: {Stderr}",
+                _logger?.LogError("ClaudeCodeChatClient: claude CLI exited with code {ExitCode}, no stdout. stderr: {Stderr}",
                     process.ExitCode, stderr);
                 throw new InvalidOperationException(
-                    $"Claude Code CLI failed (exit code {process.ExitCode}): {stderr}");
+                    $"Claude Code CLI failed (exit code {process.ExitCode}): {(string.IsNullOrWhiteSpace(stderr) ? "no output" : stderr)}");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                _logger?.LogWarning("ClaudeCodeChatClient: claude CLI exited with code {ExitCode}, attempting to parse JSON response",
+                    process.ExitCode);
             }
 
             // Parse JSON response: {"type":"result","result":"<response text>","is_error":false,...}
