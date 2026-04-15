@@ -386,7 +386,7 @@ internal static class Program
 
             // Create ResponsesApiClient for code agents - Use same logic as RunMigrationAsync
             ResponsesApiClient? responsesApiClient = null;
-            if (!IsGitHubCopilotMode(aiSettings) &&
+            if (IsAzureOpenAIMode(aiSettings) &&
                 !string.IsNullOrEmpty(aiSettings.Endpoint) && !string.IsNullOrEmpty(aiSettings.DeploymentName))
             {
                 // Force Entra ID (DefaultAzureCredential) by passing empty API Key as requested
@@ -406,7 +406,7 @@ internal static class Program
             IChatClient? chatClient = null;
             var chatDeployment = aiSettings.ChatDeploymentName ?? aiSettings.ChatModelId ?? aiSettings.DeploymentName;
 
-            if (IsGitHubCopilotMode(aiSettings))
+            if (IsGitHubCopilotMode(aiSettings) || IsAnthropicMode(aiSettings) || IsClaudeCodeMode(aiSettings))
             {
                 chatClient = CreateChatClientFromSettings(aiSettings, mcpLogger, forChat: true);
             }
@@ -449,6 +449,21 @@ internal static class Program
     private static bool IsGitHubCopilotMode(AISettings ai)
         => string.Equals(ai.ServiceType, "GitHubCopilot", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsAnthropicMode(AISettings ai)
+        => string.Equals(ai.ServiceType, "Anthropic", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsClaudeCodeMode(AISettings ai)
+        => string.Equals(ai.ServiceType, "ClaudeCode", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsAzureOpenAIMode(AISettings ai)
+        => !IsGitHubCopilotMode(ai) && !IsAnthropicMode(ai) && !IsClaudeCodeMode(ai);
+
+    private static string GetProviderName(AISettings ai)
+        => IsGitHubCopilotMode(ai) ? "GitHub Copilot"
+         : IsAnthropicMode(ai)     ? "Anthropic Claude"
+         : IsClaudeCodeMode(ai)    ? "Claude Code"
+         :                            "Azure OpenAI";
+
     private static IChatClient CreateChatClientFromSettings(
         AISettings ai,
         ILogger logger,
@@ -467,6 +482,20 @@ internal static class Program
                 githubToken: ghToken,
                 logger);
             logger.LogInformation("IChatClient initialized via GitHub Copilot SDK for model: {Model}", modelId ?? deployment);
+            return client;
+        }
+
+        if (IsAnthropicMode(ai))
+        {
+            var client = ChatClientFactory.CreateAnthropicChatClient(apiKey, modelId, logger);
+            logger.LogInformation("IChatClient initialized via Anthropic for model: {Model}", modelId);
+            return client;
+        }
+
+        if (IsClaudeCodeMode(ai))
+        {
+            var client = ChatClientFactory.CreateClaudeCodeChatClient(modelId ?? deployment, logger);
+            logger.LogInformation("IChatClient initialized via Claude Code CLI for model: {Model}", modelId ?? deployment);
             return client;
         }
 
@@ -569,14 +598,23 @@ internal static class Program
                 }
             }
 
-            // Validate required AI configuration (relaxed for GitHub Copilot SDK)
-            if (!IsGitHubCopilotMode(settings.AISettings))
+            // Validate required AI configuration (relaxed for non-Azure providers)
+            if (IsAzureOpenAIMode(settings.AISettings))
             {
                 if (string.IsNullOrEmpty(settings.AISettings.Endpoint) ||
                     string.IsNullOrEmpty(settings.AISettings.DeploymentName))
                 {
                     logger.LogError("Azure OpenAI configuration incomplete. Please ensure endpoint and deployment name are configured.");
                     logger.LogError("You can set them in Config/ai-config.local.env or as environment variables.");
+                    Environment.Exit(1);
+                }
+            }
+            else if (IsAnthropicMode(settings.AISettings))
+            {
+                if (string.IsNullOrEmpty(settings.AISettings.ApiKey))
+                {
+                    logger.LogError("Anthropic configuration incomplete. Please ensure API key is configured.");
+                    logger.LogError("Set AISETTINGS__APIKEY in Config/ai-config.local.env or as an environment variable.");
                     Environment.Exit(1);
                 }
             }
@@ -589,14 +627,14 @@ internal static class Program
 
             // Create EnhancedLogger early so it can track ALL API calls
             var enhancedLogger = new EnhancedLogger(loggerFactory.CreateLogger<EnhancedLogger>());
-            var providerName = IsGitHubCopilotMode(settings.AISettings) ? "GitHub Copilot" : "Azure OpenAI";
+            var providerName = GetProviderName(settings.AISettings);
             var chatLogger = new ChatLogger(loggerFactory.CreateLogger<ChatLogger>(), providerName: providerName);
 
             // Get API version from environment or default
             var apiVersion = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_VERSION") ?? "2025-04-01-preview";
 
             ResponsesApiClient? responsesApiClient = null;
-            if (!IsGitHubCopilotMode(settings.AISettings))
+            if (IsAzureOpenAIMode(settings.AISettings))
             {
                 responsesApiClient = new ResponsesApiClient(
                     settings.AISettings.Endpoint,
@@ -1396,8 +1434,8 @@ internal static class Program
                 Environment.Exit(1);
             }
 
-            // Validate required AI configuration (relaxed for GitHub Copilot SDK)
-            if (!IsGitHubCopilotMode(settings.AISettings))
+            // Validate required AI configuration (relaxed for non-Azure providers)
+            if (IsAzureOpenAIMode(settings.AISettings))
             {
                 if (string.IsNullOrEmpty(settings.AISettings.Endpoint) ||
                     string.IsNullOrEmpty(settings.AISettings.DeploymentName))
@@ -1406,20 +1444,29 @@ internal static class Program
                     Environment.Exit(1);
                 }
             }
+            else if (IsAnthropicMode(settings.AISettings))
+            {
+                if (string.IsNullOrEmpty(settings.AISettings.ApiKey))
+                {
+                    logger.LogError("Anthropic configuration incomplete. Please ensure API key is configured.");
+                    logger.LogError("Set AISETTINGS__APIKEY in Config/ai-config.local.env or as an environment variable.");
+                    Environment.Exit(1);
+                }
+            }
 
             // Create EnhancedLogger and ChatLogger early for API tracking
             var enhancedLogger = new EnhancedLogger(
                 loggerFactory.CreateLogger<EnhancedLogger>());
-            var providerName = IsGitHubCopilotMode(settings.AISettings) ? "GitHub Copilot" : "Azure OpenAI";
+            var providerName = GetProviderName(settings.AISettings);
             var chatLogger = new ChatLogger(
                 loggerFactory.CreateLogger<ChatLogger>(), providerName: providerName);
 
             // Get API version from environment or default
             var apiVersion = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_VERSION") ?? "2025-04-01-preview";
 
-            // Create ResponsesApiClient for code agents (Azure-only, null in Copilot SDK mode)
+            // Create ResponsesApiClient for code agents (Azure-only, null in non-Azure modes)
             ResponsesApiClient? responsesApiClient = null;
-            if (!IsGitHubCopilotMode(settings.AISettings))
+            if (IsAzureOpenAIMode(settings.AISettings))
             {
                 responsesApiClient = new ResponsesApiClient(
                     settings.AISettings.Endpoint,

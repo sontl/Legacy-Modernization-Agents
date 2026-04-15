@@ -533,6 +533,37 @@ check_ai_connectivity() {
         return 0
     fi
 
+    # Claude Code CLI uses the user's subscription, no API key
+    if [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "ClaudeCode" ]]; then
+        echo -e "  Provider: ${GREEN}Claude Code CLI${NC}"
+        if command -v claude >/dev/null 2>&1; then
+            local claude_ver
+            claude_ver=$(claude --version 2>/dev/null || echo "unknown")
+            echo -e "  Claude CLI: ${GREEN}✅ found (v${claude_ver})${NC}"
+        else
+            echo -e "  Claude CLI: ${RED}❌ not found in PATH${NC}"
+            return 1
+        fi
+        echo -e "  Model: ${GREEN}${AISETTINGS__MODELID:-not set}${NC}"
+        echo ""
+        return 0
+    fi
+
+    # Anthropic Claude uses its own API, not Azure endpoints
+    if [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "Anthropic" ]]; then
+        echo -e "  Provider: ${GREEN}Anthropic Claude${NC}"
+        echo -e "  Model: ${GREEN}${AISETTINGS__MODELID:-not set}${NC}"
+        local api_key_check="${AISETTINGS__APIKEY}"
+        if [[ -n "$api_key_check" && "$api_key_check" != *"placeholder"* ]]; then
+            echo -e "  API Key: ${GREEN}✅ configured (${api_key_check:0:8}...)${NC}"
+        else
+            echo -e "  API Key: ${RED}❌ not configured${NC}"
+            return 1
+        fi
+        echo ""
+        return 0
+    fi
+
     local endpoint="${AZURE_OPENAI_ENDPOINT}"
     local api_key="${AZURE_OPENAI_API_KEY}"
     local deployment="${AZURE_OPENAI_DEPLOYMENT_NAME}"
@@ -827,6 +858,63 @@ run_doctor() {
                     echo -e "  ${YELLOW}⚠️  AISETTINGS__CHATMODELID not set (will use code model)${NC}"
                 fi
 
+            elif [[ "$service_type" == "ClaudeCode" ]]; then
+                echo -e "  ${GREEN}✅ Claude Code CLI${NC}"
+
+                # Check claude CLI
+                if command -v claude >/dev/null 2>&1; then
+                    local claude_ver
+                    claude_ver=$(claude --version 2>/dev/null || echo "unknown")
+                    echo -e "  ${GREEN}✅ claude CLI found (v${claude_ver})${NC}"
+                else
+                    echo -e "  ${RED}❌ 'claude' CLI not found in PATH${NC}"
+                    echo -e "  ${YELLOW}   Install: https://docs.anthropic.com/en/docs/claude-code${NC}"
+                    config_valid=false
+                fi
+
+                # Check model IDs
+                echo ""
+                echo -e "${CYAN}Models:${NC}"
+                local model_id="${AISETTINGS__MODELID}"
+                if [[ -n "$model_id" ]]; then
+                    echo -e "  ${GREEN}✅ Model: $model_id${NC}"
+                else
+                    echo -e "  ${RED}❌ AISETTINGS__MODELID is not set${NC}"
+                    config_valid=false
+                fi
+
+            elif [[ "$service_type" == "Anthropic" ]]; then
+                echo -e "  ${GREEN}✅ Anthropic Claude${NC}"
+
+                # Check API key
+                echo ""
+                echo -e "${CYAN}Authentication:${NC}"
+                local anthropic_key="${AISETTINGS__APIKEY}"
+                if [[ -n "$anthropic_key" && "$anthropic_key" != *"placeholder"* ]]; then
+                    echo -e "  ${GREEN}✅ API Key: ${anthropic_key:0:8}...${NC}"
+                else
+                    echo -e "  ${RED}❌ AISETTINGS__APIKEY is not set${NC}"
+                    config_valid=false
+                fi
+
+                # Check model IDs
+                echo ""
+                echo -e "${CYAN}Models:${NC}"
+                local model_id="${AISETTINGS__MODELID}"
+                if [[ -n "$model_id" ]]; then
+                    echo -e "  ${GREEN}✅ Code Model: $model_id${NC}"
+                else
+                    echo -e "  ${RED}❌ AISETTINGS__MODELID is not set${NC}"
+                    config_valid=false
+                fi
+
+                local chat_model="${AISETTINGS__CHATMODELID}"
+                if [[ -n "$chat_model" ]]; then
+                    echo -e "  ${GREEN}✅ Chat Model: $chat_model${NC}"
+                else
+                    echo -e "  ${YELLOW}⚠️  AISETTINGS__CHATMODELID not set (will use code model)${NC}"
+                fi
+
             else
                 echo -e "  ${GREEN}✅ ${service_type:-AzureOpenAI}${NC}"
 
@@ -1089,34 +1177,211 @@ run_setup() {
         fi
     fi
 
-    # Create local config from template
-    echo -e "${BLUE}📁 Creating local configuration file...${NC}"
-    TEMPLATE_CONFIG="$REPO_ROOT/Config/ai-config.local.env.example"
-
-    if [ ! -f "$TEMPLATE_CONFIG" ]; then
-        echo -e "${RED}❌ Example configuration file not found: $TEMPLATE_CONFIG${NC}"
-        return 1
-    fi
-
-    cp "$TEMPLATE_CONFIG" "$LOCAL_CONFIG"
-    echo -e "${GREEN}✅ Created: $LOCAL_CONFIG${NC}"
-    echo ""
-
     # Interactive configuration
     echo -e "${BLUE}🔧 Interactive Configuration Setup${NC}"
     echo "=================================="
     echo ""
 
-    # Provider selection
+    # Provider selection (before template copy — some providers generate their own config)
     echo "Select your AI provider:"
     echo -e "  ${GREEN}1)${NC} Azure OpenAI / Azure AI Foundry (default)"
     echo -e "  ${GREEN}2)${NC} GitHub Copilot SDK (requires Copilot CLI in PATH)"
+    echo -e "  ${GREEN}3)${NC} Anthropic Claude API (requires API key from console.anthropic.com)"
+    echo -e "  ${GREEN}4)${NC} Claude Code CLI (uses your Claude Code subscription — no API key)"
     echo ""
     read -p "Choice [1]: " provider_choice
     provider_choice=${provider_choice:-1}
     echo ""
 
-    if [[ "$provider_choice" == "2" ]]; then
+    if [[ "$provider_choice" == "4" ]]; then
+        # --- Claude Code CLI setup ---
+        echo -e "${BLUE}🖥️  Claude Code CLI Configuration${NC}"
+        echo ""
+
+        # Verify claude CLI is available
+        if ! command -v claude >/dev/null 2>&1; then
+            echo -e "${RED}❌ 'claude' CLI not found in PATH.${NC}"
+            echo -e "${YELLOW}   Install it: https://docs.anthropic.com/en/docs/claude-code${NC}"
+            echo -e "${YELLOW}   Then log in with your Claude Code subscription.${NC}"
+            return 1
+        fi
+
+        local claude_version
+        claude_version=$(claude --version 2>/dev/null || echo "unknown")
+        echo -e "${GREEN}✅ claude CLI found: v${claude_version}${NC}"
+        echo ""
+
+        # Model selection
+        echo -e "${BOLD}Select Claude model:${NC}"
+        echo "  1) sonnet (default - best balance of speed and capability)"
+        echo "  2) opus (highest capability)"
+        echo "  3) haiku (fastest, lowest cost)"
+        echo "  4) Custom model ID"
+        echo ""
+        read -p "Choice [1]: " model_choice
+        model_choice=${model_choice:-1}
+
+        case "$model_choice" in
+            1) claude_model="sonnet" ;;
+            2) claude_model="opus" ;;
+            3) claude_model="haiku" ;;
+            4) read -p "Enter model ID or alias: " claude_model ;;
+            *) claude_model="sonnet" ;;
+        esac
+
+        echo ""
+        echo -e "Selected model: ${GREEN}${claude_model}${NC}"
+        echo ""
+
+        # Write Claude Code configuration
+        cat > "$LOCAL_CONFIG" <<CCEOF
+# =============================================================================
+# Claude Code CLI Configuration
+# =============================================================================
+# Generated by doctor.sh setup on $(date '+%Y-%m-%d %H:%M:%S')
+# This configuration uses the Claude Code CLI with your existing subscription.
+# No API key required — authentication is handled by the claude CLI.
+# =============================================================================
+
+AZURE_OPENAI_SERVICE_TYPE="ClaudeCode"
+
+_CLAUDE_MODEL="${claude_model}"
+
+# --- Code Agents Configuration (all agents use the same Claude model) ---
+AISETTINGS__MODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__DEPLOYMENTNAME="\${_CLAUDE_MODEL}"
+
+# --- Portal & Chat Configuration (same model) ---
+AISETTINGS__CHATMODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__CHATDEPLOYMENTNAME="\${_CLAUDE_MODEL}"
+
+# Individual Agent Overrides (all default to the Claude model above)
+AISETTINGS__COBOLANALYZERMODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__JAVACONVERTERMODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__UNITTESTMODELID="\${_CLAUDE_MODEL}"
+AISETTINGS__DEPENDENCYMAPPERMODELID="\${_CLAUDE_MODEL}"
+
+# --- Placeholder values (not used by Claude Code but avoids config warnings) ---
+AZURE_OPENAI_ENDPOINT="https://claudecode-placeholder"
+AISETTINGS__ENDPOINT="https://claudecode-placeholder"
+AISETTINGS__CHATENDPOINT="https://claudecode-placeholder"
+AISETTINGS__APIKEY="claudecode-no-key-needed"
+AISETTINGS__CHATAPIKEY="claudecode-no-key-needed"
+
+# =============================================================================
+# Application Settings
+# =============================================================================
+COBOL_SOURCE_FOLDER="source"
+JAVA_OUTPUT_FOLDER="output/java"
+CSHARP_OUTPUT_FOLDER="output/csharp"
+TEST_OUTPUT_FOLDER="TestOutput"
+
+LOG_LEVEL="Information"
+ENABLE_CHAT_LOGGING="true"
+ENABLE_API_CALL_LOGGING="true"
+CCEOF
+
+        echo -e "${GREEN}✅ Claude Code CLI configuration written!${NC}"
+        echo -e "Config file: ${YELLOW}${LOCAL_CONFIG}${NC}"
+        echo ""
+        echo -e "${YELLOW}Note: Claude Code uses your subscription plan. Each agent call${NC}"
+        echo -e "${YELLOW}spawns a 'claude -p' process. No separate API key is needed.${NC}"
+        echo ""
+        return 0
+
+    elif [[ "$provider_choice" == "3" ]]; then
+        # --- Anthropic Claude setup ---
+        echo -e "${BLUE}🤖 Anthropic Claude Configuration${NC}"
+        echo ""
+
+        read -p "Enter your Anthropic API key: " -s anthropic_api_key
+        echo ""
+        if [[ -z "$anthropic_api_key" ]]; then
+            echo -e "${RED}❌ No API key provided. Aborting.${NC}"
+            return 1
+        fi
+        echo -e "${GREEN}✅ API key received: ${anthropic_api_key:0:8}...${NC}"
+        echo ""
+
+        # Model selection
+        echo -e "${BOLD}Select Claude model:${NC}"
+        echo "  1) claude-sonnet-4-20250514 (default - best balance of speed and capability)"
+        echo "  2) claude-opus-4-20250514 (highest capability)"
+        echo "  3) claude-haiku-3-5-20241022 (fastest, lowest cost)"
+        echo "  4) Custom model ID"
+        echo ""
+        read -p "Choice [1]: " model_choice
+        model_choice=${model_choice:-1}
+
+        case "$model_choice" in
+            1) anthropic_model="claude-sonnet-4-20250514" ;;
+            2) anthropic_model="claude-opus-4-20250514" ;;
+            3) anthropic_model="claude-haiku-3-5-20241022" ;;
+            4) read -p "Enter model ID: " anthropic_model ;;
+            *) anthropic_model="claude-sonnet-4-20250514" ;;
+        esac
+
+        echo ""
+        echo -e "Selected model: ${GREEN}${anthropic_model}${NC}"
+        echo ""
+
+        # Write Anthropic configuration
+        cat > "$LOCAL_CONFIG" <<ANTHEOF
+# =============================================================================
+# Anthropic Claude Configuration
+# =============================================================================
+# Generated by doctor.sh setup on $(date '+%Y-%m-%d %H:%M:%S')
+# This configuration uses Anthropic Claude instead of Azure OpenAI.
+# Get your API key from: https://console.anthropic.com/settings/keys
+# =============================================================================
+
+AZURE_OPENAI_SERVICE_TYPE="Anthropic"
+
+_ANTHROPIC_MODEL="${anthropic_model}"
+
+# --- Code Agents Configuration (all agents use the same Claude model) ---
+AISETTINGS__APIKEY="${anthropic_api_key}"
+AISETTINGS__MODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__DEPLOYMENTNAME="\${_ANTHROPIC_MODEL}"
+
+# --- Portal & Chat Configuration (same model) ---
+AISETTINGS__CHATAPIKEY="${anthropic_api_key}"
+AISETTINGS__CHATMODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__CHATDEPLOYMENTNAME="\${_ANTHROPIC_MODEL}"
+
+# Individual Agent Overrides (all default to the Claude model above)
+AISETTINGS__COBOLANALYZERMODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__JAVACONVERTERMODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__UNITTESTMODELID="\${_ANTHROPIC_MODEL}"
+AISETTINGS__DEPENDENCYMAPPERMODELID="\${_ANTHROPIC_MODEL}"
+
+# --- Placeholder endpoints (not used by Anthropic but avoids config warnings) ---
+AZURE_OPENAI_ENDPOINT="https://anthropic-placeholder"
+AISETTINGS__ENDPOINT="https://anthropic-placeholder"
+AISETTINGS__CHATENDPOINT="https://anthropic-placeholder"
+
+# =============================================================================
+# Application Settings
+# =============================================================================
+COBOL_SOURCE_FOLDER="source"
+JAVA_OUTPUT_FOLDER="output/java"
+CSHARP_OUTPUT_FOLDER="output/csharp"
+TEST_OUTPUT_FOLDER="TestOutput"
+
+LOG_LEVEL="Information"
+ENABLE_CHAT_LOGGING="true"
+ENABLE_API_CALL_LOGGING="true"
+ANTHEOF
+
+        echo -e "${GREEN}✅ Anthropic Claude configuration written!${NC}"
+        echo -e "Config file: ${YELLOW}${LOCAL_CONFIG}${NC}"
+        echo ""
+        echo -e "${YELLOW}Note: Anthropic mode uses Chat Completions API for all agents.${NC}"
+        echo -e "${YELLOW}The Responses API (complexity-aware reasoning) is Azure-only.${NC}"
+        echo ""
+        return 0
+
+    elif [[ "$provider_choice" == "2" ]]; then
         # --- GitHub Copilot SDK setup ---
         echo -e "${BLUE}🐙 GitHub Copilot SDK Configuration${NC}"
         echo ""
@@ -1338,6 +1603,19 @@ EOF
     fi
 
     # --- Azure OpenAI setup (original flow) ---
+    # Create local config from template for Azure (Copilot and Anthropic generate their own)
+    echo -e "${BLUE}📁 Creating local configuration file from template...${NC}"
+    TEMPLATE_CONFIG="$REPO_ROOT/Config/ai-config.env.example"
+
+    if [ ! -f "$TEMPLATE_CONFIG" ]; then
+        echo -e "${RED}❌ Template configuration file not found: $TEMPLATE_CONFIG${NC}"
+        return 1
+    fi
+
+    cp "$TEMPLATE_CONFIG" "$LOCAL_CONFIG"
+    echo -e "${GREEN}✅ Created: $LOCAL_CONFIG${NC}"
+    echo ""
+
     echo "Please provide your AI service configuration details:"
     echo ""
 
@@ -1577,6 +1855,12 @@ run_test() {
     if load_configuration >/dev/null 2>&1 && load_ai_config >/dev/null 2>&1; then
         if [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "GitHubCopilot" ]]; then
             echo -e "${GREEN}✅ Using GitHub Copilot SDK — no Azure deployment check needed${NC}"
+            echo -e "  Model: ${AISETTINGS__MODELID:-not set}"
+        elif [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "Anthropic" ]]; then
+            echo -e "${GREEN}✅ Using Anthropic Claude — no Azure deployment check needed${NC}"
+            echo -e "  Model: ${AISETTINGS__MODELID:-not set}"
+        elif [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "ClaudeCode" ]]; then
+            echo -e "${GREEN}✅ Using Claude Code CLI — no Azure deployment check needed${NC}"
             echo -e "  Model: ${AISETTINGS__MODELID:-not set}"
         else
             check_model_deployments

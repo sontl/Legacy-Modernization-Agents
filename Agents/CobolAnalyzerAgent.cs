@@ -28,7 +28,11 @@ public class CobolAnalyzerAgent : ICobolAnalyzerAgent
     private string AgentName => "CobolAnalyzerAgent";
 
     private string ProviderName =>
-        _chatClient is CopilotChatClient ? "GitHub Copilot" : "Azure OpenAI";
+        _chatClient is CopilotChatClient ? "GitHub Copilot"
+        : _chatClient is ClaudeCodeChatClient ? "Claude Code"
+        : _chatClient?.GetType().FullName?.Contains("Anthropic", StringComparison.OrdinalIgnoreCase) == true
+            ? "Anthropic Claude"
+            : "Azure OpenAI";
 
     /// <summary>
     /// Creates a CobolAnalyzerAgent, routing to Responses API or Chat API based on availability.

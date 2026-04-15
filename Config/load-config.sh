@@ -111,7 +111,48 @@ validate_config() {
 
         return $errors
     fi
-    
+
+    # Anthropic mode: requires API key and model ID, no endpoint/deployment
+    if [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "Anthropic" ]]; then
+        log_success "✓ Provider: Anthropic Claude"
+
+        local anthropic_required=("AISETTINGS__APIKEY" "AISETTINGS__MODELID")
+        for var in "${anthropic_required[@]}"; do
+            if [ -z "${!var}" ]; then
+                log_error "Required variable $var is not set"
+                ((errors++))
+            else
+                log_success "✓ $var is configured"
+            fi
+        done
+
+        return $errors
+    fi
+
+    # Claude Code mode: requires model ID and claude CLI in PATH, no API key
+    if [[ "${AZURE_OPENAI_SERVICE_TYPE}" == "ClaudeCode" ]]; then
+        log_success "✓ Provider: Claude Code CLI"
+
+        if command -v claude >/dev/null 2>&1; then
+            log_success "✓ claude CLI found in PATH"
+        else
+            log_error "'claude' CLI not found in PATH"
+            ((errors++))
+        fi
+
+        local claudecode_required=("AISETTINGS__MODELID")
+        for var in "${claudecode_required[@]}"; do
+            if [ -z "${!var}" ]; then
+                log_error "Required variable $var is not set"
+                ((errors++))
+            else
+                log_success "✓ $var is configured: ${!var}"
+            fi
+        done
+
+        return $errors
+    fi
+
     # Core: Endpoint is always required (Azure OpenAI / OpenAI)
     local required_vars=(
         "AZURE_OPENAI_ENDPOINT"

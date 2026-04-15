@@ -28,7 +28,11 @@ public abstract class AgentBase
     protected abstract string AgentName { get; }
 
     protected string ProviderName =>
-        ChatClient is CopilotChatClient ? "GitHub Copilot" : "Azure OpenAI";
+        ChatClient is CopilotChatClient ? "GitHub Copilot"
+        : ChatClient is ClaudeCodeChatClient ? "Claude Code"
+        : ChatClient?.GetType().FullName?.Contains("Anthropic", StringComparison.OrdinalIgnoreCase) == true
+            ? "Anthropic Claude"
+            : "Azure OpenAI";
 
     /// <summary>
     /// Initializes a new instance using Chat Completions API (for chat models like gpt-5.1-chat).

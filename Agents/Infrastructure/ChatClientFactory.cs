@@ -4,6 +4,7 @@ using Azure.Core;
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Anthropic;
 using OpenAI;
 using AzureOpenAIOptions = Azure.AI.OpenAI.AzureOpenAIClientOptions;
 using AzureServiceVersion = Azure.AI.OpenAI.AzureOpenAIClientOptions.ServiceVersion;
@@ -132,7 +133,51 @@ public static class ChatClientFactory
     }
 
     /// <summary>
-    /// Creates an IChatClient by routing to Azure OpenAI, OpenAI, or GitHub Copilot based on serviceType.
+    /// Creates an IChatClient for Anthropic Claude.
+    /// Uses the official Anthropic SDK with built-in IChatClient support.
+    /// The API key is read from the ANTHROPIC_API_KEY environment variable.
+    /// If apiKey is provided, it is set as the environment variable before client creation.
+    /// </summary>
+    public static IChatClient CreateAnthropicChatClient(
+        string apiKey,
+        string modelId,
+        ILogger? logger = null)
+    {
+        if (string.IsNullOrEmpty(modelId))
+            throw new ArgumentNullException(nameof(modelId));
+
+        // The Anthropic SDK reads the API key from the ANTHROPIC_API_KEY environment variable.
+        // Set it from the config if provided.
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", apiKey);
+        }
+
+        logger?.LogInformation("Creating Anthropic chat client for model: {Model}", modelId);
+
+        var client = new AnthropicClient();
+        return client.AsIChatClient(modelId);
+    }
+
+    /// <summary>
+    /// Creates an IChatClient for Claude Code CLI.
+    /// Uses the user's existing Claude Code subscription — no API key required.
+    /// Requires the 'claude' CLI in PATH.
+    /// </summary>
+    public static IChatClient CreateClaudeCodeChatClient(
+        string modelId,
+        ILogger? logger = null)
+    {
+        if (string.IsNullOrEmpty(modelId))
+            throw new ArgumentNullException(nameof(modelId));
+
+        logger?.LogInformation("Creating Claude Code CLI chat client for model: {Model}", modelId);
+
+        return new ClaudeCodeChatClient(modelId, logger: logger);
+    }
+
+    /// <summary>
+    /// Creates an IChatClient by routing to Azure OpenAI, OpenAI, GitHub Copilot, Anthropic, or Claude Code based on serviceType.
     /// </summary>
     public static IChatClient CreateChatClient(
         string? endpoint,
@@ -145,6 +190,16 @@ public static class ChatClientFactory
         if (string.Equals(serviceType, "GitHubCopilot", StringComparison.OrdinalIgnoreCase))
         {
             return CreateGitHubCopilotChatClient(modelId, githubToken: null, logger);
+        }
+
+        if (string.Equals(serviceType, "Anthropic", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateAnthropicChatClient(apiKey, modelId, logger);
+        }
+
+        if (string.Equals(serviceType, "ClaudeCode", StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateClaudeCodeChatClient(modelId, logger);
         }
 
         if (!string.IsNullOrEmpty(endpoint))
