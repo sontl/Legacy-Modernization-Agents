@@ -1940,6 +1940,7 @@ select_speed_profile() {
             export CODEX_STAGGER_DELAY_MS="200"
             export CODEX_MAX_PARALLEL_CONVERSION="4"
             export CODEX_RATE_LIMIT_SAFETY_FACTOR="0.85"
+            export CLAUDE_CODE_MODEL="haiku"
             ;;
         2)
             echo -e "${GREEN}Selected: FAST${NC}"
@@ -1953,6 +1954,7 @@ select_speed_profile() {
             export CODEX_HIGH_MULTIPLIER="2.0"
             export CODEX_STAGGER_DELAY_MS="500"
             export CODEX_MAX_PARALLEL_CONVERSION="3"
+            export CLAUDE_CODE_MODEL="haiku"
             ;;
         4)
             echo -e "${GREEN}Selected: THOROUGH${NC}"
@@ -1966,6 +1968,7 @@ select_speed_profile() {
             export CODEX_HIGH_MULTIPLIER="3.5"
             export CODEX_STAGGER_DELAY_MS="1500"
             export CODEX_MAX_PARALLEL_CONVERSION="2"
+            export CLAUDE_CODE_MODEL="opus"
             ;;
         3|"")
             echo -e "${GREEN}Selected: BALANCED (default)${NC}"
@@ -1973,6 +1976,7 @@ select_speed_profile() {
             # (1.5/2.5/3.5 with 100K max) for the full three-tier content-aware system.
             export CODEX_STAGGER_DELAY_MS="1000"
             export CODEX_MAX_PARALLEL_CONVERSION="2"
+            export CLAUDE_CODE_MODEL="sonnet"
             ;;
         *)
             echo -e "${YELLOW}Invalid choice, using BALANCED${NC}"

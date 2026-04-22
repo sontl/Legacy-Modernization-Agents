@@ -1245,6 +1245,13 @@ internal static class Program
         // ── Model Profile Overrides (Three-Tier Reasoning) ──────────────────
 
         // Codex Profile overrides
+        if (IsClaudeCodeMode(aiSettings) &&
+            Environment.GetEnvironmentVariable("CLAUDE_CODE_MODEL") is { Length: > 0 } claudeCodeModel)
+        {
+            aiSettings.ModelId = claudeCodeModel;
+            aiSettings.ChatModelId = claudeCodeModel;
+        }
+
         var codexProfile = settings.CodexProfile ??= new ModelProfileSettings();
 
         if (Environment.GetEnvironmentVariable("CODEX_LOW_REASONING_EFFORT") is { Length: > 0 } codexLowEffort)
