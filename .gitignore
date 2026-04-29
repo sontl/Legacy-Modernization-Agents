@@ -192,3 +192,4 @@ Temporary Items
 Data/*.db
 Data/*.db-*
 output-old/*
+build/*
